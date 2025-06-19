@@ -118,15 +118,17 @@ app.post("/api/v1/content", middleware_1.userMiddleware, async (req, res) => {
     try {
         const title = req.body.title;
         const link = req.body.link;
-        if (!title || !link) {
+        const type = req.body.type;
+        if (!title || !link || !type) {
             return res.status(400).json({
                 success: false,
-                message: "Title and link are required",
+                message: "Title, link and type are required",
             });
         }
         const content = await db_1.ContentModel.create({
             title,
             link,
+            type,
             userId: req.userId,
             tags: []
         });

@@ -145,17 +145,19 @@ app.post("/api/v1/content", userMiddleware, async (req: AuthRequest, res: Respon
     try {
         const title = req.body.title;
         const link = req.body.link;
+        const type = req.body.type;
 
-        if (!title || !link) {
+        if (!title || !link || !type ) {
             return res.status(400).json({
                 success: false,
-                message: "Title and link are required",
+                message: "Title, link and type are required",
             });
         }
 
         const content = await ContentModel.create({
             title,
             link,
+            type,
             userId: req.userId,
             tags: []
         })
