@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ContentModel = exports.UserModel = void 0;
+exports.LinkModel = exports.LinkSchema = exports.ContentModel = exports.UserModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 mongoose_1.default.connect("mongodb+srv://mishrashashank2106:youwerenotsupposedtodoso@cluster0.i6qbf94.mongodb.net/brain-app");
 const UserSchema = new mongoose_1.Schema({
@@ -48,3 +48,8 @@ const ContentSchema = new mongoose_1.Schema({
     userId: { type: mongoose_1.default.Types.ObjectId, ref: 'User', required: true }
 });
 exports.ContentModel = (0, mongoose_1.model)("Content", ContentSchema);
+exports.LinkSchema = new mongoose_1.Schema({
+    hash: String,
+    userId: { type: mongoose_1.default.Types.ObjectId, ref: 'User', required: true, unique: true },
+});
+exports.LinkModel = (0, mongoose_1.model)("Link", exports.LinkSchema);

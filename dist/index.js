@@ -10,8 +10,11 @@ const bcrypt_1 = __importDefault(require("bcrypt"));
 const db_1 = require("./db");
 const config_1 = require("./config");
 const middleware_1 = require("./middleware");
+const utils_1 = require("./utils");
+const cors_1 = __importDefault(require("cors"));
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
+app.use((0, cors_1.default)());
 // zod schema
 const signupSchema = zod_1.z.object({
     username: zod_1.z
@@ -164,11 +167,99 @@ app.get("/api/v1/content", middleware_1.userMiddleware, async (req, res) => {
         });
     }
 });
-app.delete("/api/v1/content", (req, res) => {
+app.delete("/api/v1/content", async (req, res) => {
+    try {
+        const contentId = req.body.contentId;
+        const userId = req.userId;
+        if (!contentId) {
+            return res.status(400).json({ success: false, message: "Content ID is required" });
+        }
+        // Delete content only if it belongs to the authenticated user
+        const result = await db_1.ContentModel.deleteOne({
+            _id: contentId,
+            userId: userId,
+        });
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ success: false, message: "Content not found or unauthorized" });
+        }
+        res.json({
+            success: true,
+            message: "Content deleted successfully",
+        });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: "Internal Server Error",
+        });
+    }
 });
-app.post("/api/v1/brain/share", (req, res) => {
+app.post("/api/v1/brain/share", middleware_1.userMiddleware, async (req, res) => {
+    try {
+        const { share } = req.body;
+        if (share) {
+            const existingLink = await db_1.LinkModel.findOne({
+                userId: req.userId
+            });
+            if (existingLink) {
+                // Return the existing share link
+                return res.json({
+                    message: "Share link already exists",
+                    shareLink: `http://localhost:3000/api/v1/brain/${existingLink.hash}`
+                });
+            }
+            // Create a new share link
+            const hash = (0, utils_1.random)(10);
+            const newLink = await db_1.LinkModel.create({
+                userId: req.userId,
+                hash
+            });
+            res.json({
+                message: "Share link created successfully",
+                shareLink: `http://localhost:3000/api/v1/brain/${hash}`
+            });
+        }
+        else {
+            // If share is false, delete the existing link
+            await db_1.LinkModel.deleteOne({ userId: req.userId });
+            res.json({
+                message: "Share link removed successfully"
+            });
+        }
+    }
+    catch (error) {
+        console.error("Error updating share link:", error);
+        res.status(500).json({
+            message: "An error occurred while updating the share link"
+        });
+    }
 });
-app.get("/api/v1/brain/:shareLink", (req, res) => {
+app.get("/api/v1/brain/:shareLink", async (req, res) => {
+    try {
+        const hash = req.params.shareLink;
+        const link = await db_1.LinkModel.findOne({ hash });
+        if (!link) {
+            return res.status(411).json({
+                message: "Sorry, input is invalid"
+            });
+        }
+        const content = await db_1.ContentModel.find({ userId: link.userId });
+        const user = await db_1.UserModel.findById(link.userId);
+        if (!user) {
+            return res.status(411).json({
+                message: "User not found"
+            });
+        }
+        res.json({
+            username: user.username,
+            content: content
+        });
+    }
+    catch (err) {
+        console.error("Error fetching shared content:", err);
+        res.status(500).json({ message: "Something went wrong" });
+    }
 });
 app.listen(3000, () => {
     console.log("server is running on port 3000");
