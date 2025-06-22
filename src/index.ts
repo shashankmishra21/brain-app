@@ -114,7 +114,7 @@ app.post("/api/v1/signin", async (req, res) => {
                 username: user.username,
             },
             JWT_SECRET,
-            { expiresIn: "1h" }
+            // { expiresIn: "1h" }
         );
 
         return res.status(200).json({
@@ -204,7 +204,7 @@ app.get("/api/v1/content", userMiddleware, async (req: AuthRequest, res: Respons
     }
 })
 
-app.delete("/api/v1/content", async (req: AuthRequest, res: Response) => {
+app.delete("/api/v1/content", userMiddleware,  async (req: AuthRequest, res: Response) => {
 
     try {
         const contentId = req.body.contentId;
