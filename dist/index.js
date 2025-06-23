@@ -92,7 +92,7 @@ app.post("/api/v1/signin", async (req, res) => {
         const token = jsonwebtoken_1.default.sign({
             userId: user._id,
             username: user.username,
-        }, config_1.JWT_SECRET, { expiresIn: "1h" });
+        }, config_1.JWT_SECRET);
         return res.status(200).json({
             success: true,
             message: "Sign in successful",
@@ -169,7 +169,7 @@ app.get("/api/v1/content", middleware_1.userMiddleware, async (req, res) => {
         });
     }
 });
-app.delete("/api/v1/content", async (req, res) => {
+app.delete("/api/v1/content", middleware_1.userMiddleware, async (req, res) => {
     try {
         const contentId = req.body.contentId;
         const userId = req.userId;
