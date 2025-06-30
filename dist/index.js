@@ -12,6 +12,7 @@ const config_1 = require("./config");
 const middleware_1 = require("./middleware");
 const utils_1 = require("./utils");
 const cors_1 = __importDefault(require("cors"));
+const config_2 = require("./config");
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 app.use((0, cors_1.default)());
@@ -208,7 +209,7 @@ app.post("/api/v1/brain/share", middleware_1.userMiddleware, async (req, res) =>
                 // Return the existing share link
                 return res.json({
                     message: "Share link already exists",
-                    shareLink: `http://localhost:3000/api/v1/brain/${existingLink.hash}`
+                    shareLink: `${config_2.BACKEND_URL}/api/v1/brain/${existingLink.hash}`
                 });
             }
             // Create a new share link
@@ -219,7 +220,7 @@ app.post("/api/v1/brain/share", middleware_1.userMiddleware, async (req, res) =>
             });
             res.json({
                 message: "Share link created successfully",
-                shareLink: `http://localhost:3000/api/v1/brain/${hash}`
+                shareLink: `${config_2.BACKEND_URL}/api/v1/brain/${hash}`
             });
         }
         else {

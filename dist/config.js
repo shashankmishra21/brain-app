@@ -1,4 +1,5 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.JWT_SECRET = void 0;
+exports.BACKEND_URL = exports.JWT_SECRET = void 0;
 exports.JWT_SECRET = "shashankmishraforbrainapp";
+exports.BACKEND_URL = "http://localhost:3000";

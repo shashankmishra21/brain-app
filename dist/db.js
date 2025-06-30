@@ -32,25 +32,40 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LinkModel = exports.LinkSchema = exports.ContentModel = exports.UserModel = void 0;
+exports.LinkModel = exports.ContentModel = exports.UserModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
-mongoose_1.default.connect("mongodb+srv://mishrashashank2106:youwerenotsupposedtodoso@cluster0.i6qbf94.mongodb.net/brain-app");
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
+//  Updated connection (no need for deprecated options)
+const dbUrl = process.env.DATABASE_URL;
+if (!dbUrl) {
+    throw new Error("DATABASE_URL is not defined in the environment variables");
+}
+mongoose_1.default.connect(dbUrl)
+    .then(() => console.log("Connected to MongoDB ✅"))
+    .catch((err) => console.error("DB connection error ❌", err));
+//  User Schema
 const UserSchema = new mongoose_1.Schema({
     username: { type: String, unique: true },
-    password: String
+    password: { type: String, required: true },
 });
 exports.UserModel = (0, mongoose_1.model)("User", UserSchema);
+//  Content Schema
 const ContentSchema = new mongoose_1.Schema({
-    title: String,
-    link: String,
-    type: String,
-    tags: [{ type: mongoose_1.default.Types.ObjectId, ref: 'Tag' }],
-    userId: { type: mongoose_1.default.Types.ObjectId, ref: 'User', required: true }
+    title: { type: String, required: true },
+    link: { type: String, required: true },
+    type: { type: String, required: true },
+    tags: [{ type: mongoose_1.default.Schema.Types.ObjectId, ref: "Tag" }],
+    userId: { type: mongoose_1.default.Schema.Types.ObjectId, ref: "User", required: true },
 });
 exports.ContentModel = (0, mongoose_1.model)("Content", ContentSchema);
-exports.LinkSchema = new mongoose_1.Schema({
-    hash: String,
-    userId: { type: mongoose_1.default.Types.ObjectId, ref: 'User', required: true, unique: true },
+//  Link Schema
+const LinkSchema = new mongoose_1.Schema({
+    hash: { type: String, required: true },
+    userId: { type: mongoose_1.default.Schema.Types.ObjectId, ref: "User", required: true, unique: true },
 });
-exports.LinkModel = (0, mongoose_1.model)("Link", exports.LinkSchema);
+exports.LinkModel = (0, mongoose_1.model)("Link", LinkSchema);
