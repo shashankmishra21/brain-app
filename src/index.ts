@@ -9,6 +9,7 @@ import { userMiddleware } from "./middleware";
 import { AuthRequest } from "./middleware";
 import { random } from "./utils";
 import cors from "cors";
+import { BACKEND_URL } from "./config";
 
 const app = express();
 app.use(express.json());
@@ -250,7 +251,7 @@ app.post("/api/v1/brain/share", userMiddleware, async (req: AuthRequest, res: Re
                 // Return the existing share link
                 return res.json({
                     message: "Share link already exists",
-                    shareLink: `http://localhost:3000/api/v1/brain/${existingLink.hash}`
+                    shareLink: `${BACKEND_URL}/api/v1/brain/${existingLink.hash}`
                 });
             }
 
@@ -263,7 +264,7 @@ app.post("/api/v1/brain/share", userMiddleware, async (req: AuthRequest, res: Re
 
             res.json({
                 message: "Share link created successfully",
-                shareLink: `http://localhost:3000/api/v1/brain/${hash}`
+                shareLink: `${BACKEND_URL}/api/v1/brain/${hash}`
             });
 
         } else {
