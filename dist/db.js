@@ -57,10 +57,21 @@ exports.UserModel = (0, mongoose_1.model)("User", UserSchema);
 //  Content Schema
 const ContentSchema = new mongoose_1.Schema({
     title: { type: String, required: true },
-    link: { type: String, required: true },
-    type: { type: String, required: true },
+    link: { type: String, required: false }, // Conditional based on type
+    description: { type: String, required: true }, // Conditional based on type
+    type: {
+        type: String,
+        required: true,
+        enum: ['linkedin', 'twitter', 'instagram', 'youtube', 'pinterest', 'documents', 'other'] // Updated enum
+    },
+    // Document file support
+    fileName: { type: String }, // If file uploaded
+    filePath: { type: String }, // File path on server
+    fileSize: { type: Number },
     tags: [{ type: mongoose_1.default.Schema.Types.ObjectId, ref: "Tag" }],
     userId: { type: mongoose_1.default.Schema.Types.ObjectId, ref: "User", required: true },
+}, {
+    timestamps: true
 });
 exports.ContentModel = (0, mongoose_1.model)("Content", ContentSchema);
 //  Link Schema

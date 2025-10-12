@@ -13,6 +13,9 @@ const middleware_1 = require("./middleware");
 const utils_1 = require("./utils");
 const cors_1 = __importDefault(require("cors"));
 const config_2 = require("./config");
+const multer_1 = __importDefault(require("multer"));
+const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 app.use((0, cors_1.default)());
@@ -20,11 +23,10 @@ app.use((0, cors_1.default)());
 const signupSchema = zod_1.z.object({
     username: zod_1.z
         .string()
-        .min(3, "Username must be at least 3 characters long")
-        .max(10, "Username must not exceed 10 characters"),
+        .min(4, "Username must be at least 4 characters long"),
     password: zod_1.z
         .string()
-        .min(8, "Password must be at least 8 characters long")
+        .min(4, "Password must be at least 8 characters long")
         .max(20, "Password must not exceed 20 characters")
         .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/, "Password must include uppercase, lowercase, number, and special character"),
 });
@@ -115,29 +117,128 @@ app.post("/api/v1/signin", async (req, res) => {
         });
     }
 });
-app.post("/api/v1/content", middleware_1.userMiddleware, async (req, res) => {
+// 🔄 Fixed Multer setup with proper types
+const storage = multer_1.default.diskStorage({
+    destination: 'uploads/documents/',
+    filename: function (req, file, cb) {
+        const uniqueName = Date.now() + '-' + file.originalname;
+        cb(null, uniqueName);
+    }
+});
+const upload = (0, multer_1.default)({
+    storage,
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ['application/pdf', 'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation'];
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        }
+        else {
+            cb(new Error('Only PDF, DOC, DOCX, PPT, PPTX files allowed'));
+        }
+    }
+});
+// 🆕 ADD THIS LINE - Serve uploaded files
+app.use('/uploads', express_1.default.static('uploads'));
+app.post("/api/v1/content", middleware_1.userMiddleware, upload.single('file'), async (req, res) => {
     try {
         const title = req.body.title;
         const link = req.body.link;
         const type = req.body.type;
-        if (!title || !link || !type) {
+        const description = req.body.description;
+        const uploadedFile = req.file;
+        if (!title || !type) {
             return res.status(400).json({
                 success: false,
-                message: "Title, link and type are required",
+                message: "Title and type are required",
             });
         }
-        const content = await db_1.ContentModel.create({
-            title,
-            link,
-            type,
-            userId: req.userId,
-            tags: []
-        });
-        return res.status(201).json({
-            success: true,
-            message: "Content created successfully",
-            data: content
-        });
+        // 🆕 ADD TYPE VALIDATION HERE
+        const validTypes = ['linkedin', 'twitter', 'instagram', 'youtube', 'pinterest', 'documents', 'other'];
+        if (!validTypes.includes(type)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid type. Must be one of: ${validTypes.join(', ')}`
+            });
+        }
+        // 🎯 Type-specific validation
+        if (type === 'documents') {
+            // Documents: File OR Link required (at least one)
+            if (!uploadedFile && !link) {
+                return res.status(400).json({
+                    success: false,
+                    message: "For documents: either upload a file OR provide a link"
+                });
+            }
+            const contentData = {
+                title,
+                description: description || '',
+                type,
+                userId: req.userId,
+                tags: []
+            };
+            if (uploadedFile) {
+                contentData.fileName = uploadedFile.originalname;
+                contentData.filePath = uploadedFile.path;
+                contentData.fileSize = uploadedFile.size;
+            }
+            if (link) {
+                contentData.link = link;
+            }
+            const content = await db_1.ContentModel.create(contentData);
+            return res.status(201).json({
+                success: true,
+                message: "Document saved successfully",
+                data: content
+            });
+        }
+        else if (type === 'other') {
+            // Other: Link OR Description required (at least one)
+            if (!link && !description) {
+                return res.status(400).json({
+                    success: false,
+                    message: "For other type: either link OR description is required"
+                });
+            }
+            const content = await db_1.ContentModel.create({
+                title,
+                link: link || '',
+                description: description || '',
+                type,
+                userId: req.userId,
+                tags: []
+            });
+            return res.status(201).json({
+                success: true,
+                message: "Content saved successfully",
+                data: content
+            });
+        }
+        else {
+            // Social Media types: ALL fields required
+            if (!link || !description) {
+                return res.status(400).json({
+                    success: false,
+                    message: "For social media types: title, link, and description are all required"
+                });
+            }
+            const content = await db_1.ContentModel.create({
+                title,
+                link,
+                description,
+                type,
+                userId: req.userId,
+                tags: []
+            });
+            return res.status(201).json({
+                success: true,
+                message: "Content created successfully",
+                data: content
+            });
+        }
     }
     catch (err) {
         console.error("Error creating content:", err);
@@ -147,19 +248,39 @@ app.post("/api/v1/content", middleware_1.userMiddleware, async (req, res) => {
         });
     }
 });
+// 🔄 ENHANCED: Get content with file info
 app.get("/api/v1/content", middleware_1.userMiddleware, async (req, res) => {
     try {
         const userId = req.userId;
+        const { type } = req.query; // 🆕 Optional filter by type
         if (!userId) {
             return res.status(401).json({
                 success: false,
                 message: "Unauthorized: User ID missing",
             });
         }
-        const contents = await db_1.ContentModel.find({ userId: userId }).populate("userId", "username");
+        // 🆕 Build filter query
+        const filter = { userId };
+        if (type) {
+            filter.type = type;
+        }
+        const contents = await db_1.ContentModel.find(filter)
+            .populate("userId", "username")
+            .sort({ createdAt: -1 }); // 🆕 Sort by newest first
+        // 🆕 Enhanced response with file info
+        const enhancedContents = contents.map(content => {
+            const contentObj = content.toObject();
+            return {
+                ...contentObj,
+                hasFile: !!(content.fileName), // 🆕 File availability indicator
+                downloadUrl: content.fileName ?
+                    `${config_2.BACKEND_URL}/api/v1/content/${content._id}/download` : null // 🆕 Download URL
+            };
+        });
         return res.status(200).json({
             success: true,
-            contents,
+            contents: enhancedContents,
+            total: contents.length // 🆕 Total count
         });
     }
     catch (error) {
@@ -170,21 +291,43 @@ app.get("/api/v1/content", middleware_1.userMiddleware, async (req, res) => {
         });
     }
 });
+// 🔄 ENHANCED: Delete with file cleanup
 app.delete("/api/v1/content", middleware_1.userMiddleware, async (req, res) => {
     try {
         const contentId = req.body.contentId;
         const userId = req.userId;
         if (!contentId) {
-            return res.status(400).json({ success: false, message: "Content ID is required" });
+            return res.status(400).json({
+                success: false,
+                message: "Content ID is required"
+            });
         }
-        // Delete content only if it belongs to the authenticated user
-        const result = await db_1.ContentModel.deleteOne({
+        // 🆕 First find the content to check for files
+        const content = await db_1.ContentModel.findOne({
             _id: contentId,
             userId: userId,
         });
-        if (result.deletedCount === 0) {
-            return res.status(404).json({ success: false, message: "Content not found or unauthorized" });
+        if (!content) {
+            return res.status(404).json({
+                success: false,
+                message: "Content not found or unauthorized"
+            });
         }
+        // 🆕 Delete associated file if exists
+        if (content.filePath) {
+            try {
+                if (fs_1.default.existsSync(content.filePath)) { // ✅ Use imported fs
+                    fs_1.default.unlinkSync(content.filePath);
+                    console.log(`File deleted: ${content.filePath}`);
+                }
+            }
+            catch (fileError) {
+                console.error("File deletion error:", fileError);
+                // Continue with database deletion even if file deletion fails
+            }
+        }
+        // Delete from database
+        await db_1.ContentModel.deleteOne({ _id: contentId, userId: userId });
         res.json({
             success: true,
             message: "Content deleted successfully",
@@ -195,6 +338,36 @@ app.delete("/api/v1/content", middleware_1.userMiddleware, async (req, res) => {
         res.status(500).json({
             success: false,
             message: "Internal Server Error",
+        });
+    }
+});
+// 🆕 NEW: Document download endpoint
+app.get("/api/v1/content/:id/download", middleware_1.userMiddleware, async (req, res) => {
+    try {
+        const contentId = req.params.id;
+        const userId = req.userId;
+        const content = await db_1.ContentModel.findOne({
+            _id: contentId,
+            userId: userId,
+            type: 'documents'
+        });
+        if (!content || !content.filePath) {
+            return res.status(404).json({
+                success: false,
+                message: "Document file not found"
+            });
+        }
+        // Set download headers
+        res.setHeader('Content-Disposition', `attachment; filename="${content.fileName}"`);
+        res.setHeader('Content-Type', 'application/octet-stream');
+        // Send file for download
+        res.sendFile(path_1.default.resolve(content.filePath));
+    }
+    catch (error) {
+        console.error("Download error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Download failed"
         });
     }
 });

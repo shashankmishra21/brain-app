@@ -4,6 +4,7 @@ import { JWT_SECRET } from "./config";
 
 export interface AuthRequest extends Request {
     userId?: string;
+    file?: Express.Multer.File;
 }
 export const userMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
     

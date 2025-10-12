@@ -18,14 +18,16 @@
     "@types/jsonwebtoken": "^9.0.9",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
-    "dotenv": "^17.0.0",
+    "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.15.1",
+    "multer": "^2.0.2",
     "typescript": "^5.8.3",
     "zod": "^3.25.56"
   },
   "devDependencies": {
-    "@types/bcrypt": "^5.0.2"
+    "@types/bcrypt": "^5.0.2",
+    "@types/multer": "^2.0.0"
   }
 }
