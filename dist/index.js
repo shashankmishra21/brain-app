@@ -143,20 +143,24 @@ const upload = (0, multer_1.default)({
 });
 // 🆕 ADD THIS LINE - Serve uploaded files
 app.use('/uploads', express_1.default.static('uploads'));
+// ✅ POST endpoint - for CREATING content
 app.post("/api/v1/content", middleware_1.userMiddleware, upload.single('file'), async (req, res) => {
     try {
-        const title = req.body.title;
-        const link = req.body.link;
-        const type = req.body.type;
-        const description = req.body.description;
+        const { title, link, type, description } = req.body;
         const uploadedFile = req.file;
+        // 🔍 DEBUG: Log what we receive
+        console.log('=== BACKEND RECEIVED (POST) ===');
+        console.log('Title:', title);
+        console.log('Link:', link);
+        console.log('Type:', type);
+        console.log('Description:', description);
+        console.log('Description length:', description?.length || 0);
         if (!title || !type) {
             return res.status(400).json({
                 success: false,
                 message: "Title and type are required",
             });
         }
-        // 🆕 ADD TYPE VALIDATION HERE
         const validTypes = ['linkedin', 'twitter', 'instagram', 'youtube', 'pinterest', 'documents', 'other'];
         if (!validTypes.includes(type)) {
             return res.status(400).json({
@@ -164,123 +168,117 @@ app.post("/api/v1/content", middleware_1.userMiddleware, upload.single('file'), 
                 message: `Invalid type. Must be one of: ${validTypes.join(', ')}`
             });
         }
-        // 🎯 Type-specific validation
-        if (type === 'documents') {
-            // Documents: File OR Link required (at least one)
-            if (!uploadedFile && !link) {
-                return res.status(400).json({
-                    success: false,
-                    message: "For documents: either upload a file OR provide a link"
-                });
-            }
-            const contentData = {
-                title,
-                description: description || '',
-                type,
-                userId: req.userId,
-                tags: []
-            };
-            if (uploadedFile) {
-                contentData.fileName = uploadedFile.originalname;
-                contentData.filePath = uploadedFile.path;
-                contentData.fileSize = uploadedFile.size;
-            }
-            if (link) {
-                contentData.link = link;
-            }
-            const content = await db_1.ContentModel.create(contentData);
-            return res.status(201).json({
-                success: true,
-                message: "Document saved successfully",
-                data: content
+        // Type-specific validation
+        if (type === 'documents' && !uploadedFile && !link) {
+            return res.status(400).json({
+                success: false,
+                message: "For documents: either upload a file OR provide a link"
             });
         }
-        else if (type === 'other') {
-            // Other: Link OR Description required (at least one)
-            if (!link && !description) {
-                return res.status(400).json({
-                    success: false,
-                    message: "For other type: either link OR description is required"
-                });
-            }
-            const content = await db_1.ContentModel.create({
-                title,
-                link: link || '',
-                description: description || '',
-                type,
-                userId: req.userId,
-                tags: []
-            });
-            return res.status(201).json({
-                success: true,
-                message: "Content saved successfully",
-                data: content
+        if (type === 'other' && !link && !description) {
+            return res.status(400).json({
+                success: false,
+                message: "For other type: either link OR description is required"
             });
         }
-        else {
-            // Social Media types: ALL fields required
-            if (!link || !description) {
-                return res.status(400).json({
-                    success: false,
-                    message: "For social media types: title, link, and description are all required"
-                });
-            }
-            const content = await db_1.ContentModel.create({
-                title,
-                link,
-                description,
-                type,
-                userId: req.userId,
-                tags: []
-            });
-            return res.status(201).json({
-                success: true,
-                message: "Content created successfully",
-                data: content
+        if (!['documents', 'other'].includes(type) && (!link || !description)) {
+            return res.status(400).json({
+                success: false,
+                message: "For social media types: title, link, and description are all required"
             });
         }
+        // Prepare content data
+        const contentData = {
+            title: title?.trim() || '',
+            type,
+            userId: req.userId,
+            tags: [],
+            description: description?.trim() || '', // Always include description
+        };
+        // Add link if provided
+        if (link?.trim()) {
+            contentData.link = link.trim();
+        }
+        // Add file info if uploaded
+        if (uploadedFile) {
+            contentData.fileName = uploadedFile.originalname;
+            contentData.filePath = uploadedFile.path;
+            contentData.fileSize = uploadedFile.size;
+        }
+        // 🔍 DEBUG: Log what we're saving
+        console.log('=== SAVING TO DATABASE ===');
+        console.log('Content data:', contentData);
+        const content = await db_1.ContentModel.create(contentData);
+        // 🔍 DEBUG: Log what was saved
+        console.log('=== SAVED TO DATABASE ===');
+        console.log('Saved description:', content.description);
+        console.log('Has description:', !!content.description);
+        return res.status(201).json({
+            success: true,
+            message: "Content created successfully",
+            data: content
+        });
     }
-    catch (err) {
-        console.error("Error creating content:", err);
+    catch (error) {
+        console.error("Error creating content:", error);
+        if (error.name === 'ValidationError') {
+            console.log('Validation error details:', error.errors);
+            return res.status(400).json({
+                success: false,
+                message: error.message
+            });
+        }
         return res.status(500).json({
             success: false,
             message: "Internal server error",
         });
     }
 });
-// 🔄 ENHANCED: Get content with file info
+// ✅ GET endpoint - for FETCHING content
 app.get("/api/v1/content", middleware_1.userMiddleware, async (req, res) => {
     try {
         const userId = req.userId;
-        const { type } = req.query; // 🆕 Optional filter by type
+        const { type } = req.query;
         if (!userId) {
             return res.status(401).json({
                 success: false,
                 message: "Unauthorized: User ID missing",
             });
         }
-        // 🆕 Build filter query
         const filter = { userId };
         if (type) {
             filter.type = type;
         }
         const contents = await db_1.ContentModel.find(filter)
             .populate("userId", "username")
-            .sort({ createdAt: -1 }); // 🆕 Sort by newest first
-        // 🆕 Enhanced response with file info
+            .sort({ createdAt: -1 });
+        // 🔍 DEBUG: Log what we're fetching from DB
+        console.log('=== FETCHING FROM DATABASE (GET) ===');
+        contents.forEach((content, index) => {
+            console.log(`Content ${index + 1}:`, {
+                title: content.title,
+                description: content.description,
+                hasDescription: !!content.description,
+                descriptionLength: content.description?.length || 0
+            });
+        });
         const enhancedContents = contents.map(content => {
             const contentObj = content.toObject();
             return {
                 ...contentObj,
-                hasFile: !!(content.fileName), // 🆕 File availability indicator
+                hasFile: !!(content.fileName),
                 downloadUrl: content.fileName ?
-                    `${config_2.BACKEND_URL}/api/v1/content/${content._id}/download` : null // 🆕 Download URL
+                    `${config_2.BACKEND_URL}/api/v1/content/${content._id}/download` : null
             };
         });
+        // 🔍 DEBUG: Log what we're sending to frontend
+        console.log('=== SENDING TO FRONTEND ===');
+        console.log('First item description:', enhancedContents[0]?.description);
+        console.log('Total items:', enhancedContents.length);
         return res.status(200).json({
             success: true,
             contents: enhancedContents,
-            total: contents.length // 🆕 Total count
+            total: contents.length
         });
     }
     catch (error) {
@@ -288,6 +286,33 @@ app.get("/api/v1/content", middleware_1.userMiddleware, async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Internal server error",
+        });
+    }
+});
+// ✅ MIGRATION ENDPOINT - Run once to fix existing data
+app.post("/api/v1/migrate/fix-descriptions", middleware_1.userMiddleware, async (req, res) => {
+    try {
+        // Update content with null or undefined descriptions
+        const result = await db_1.ContentModel.updateMany({
+            userId: req.userId,
+            $or: [
+                { description: { $exists: false } },
+                { description: null },
+                { description: undefined }
+            ]
+        }, {
+            $set: { description: '' }
+        });
+        res.json({
+            success: true,
+            message: `Fixed ${result.modifiedCount} content items`,
+            modifiedCount: result.modifiedCount
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error occurred'
         });
     }
 });
