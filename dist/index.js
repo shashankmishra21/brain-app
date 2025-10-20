@@ -19,16 +19,25 @@ const fs_1 = __importDefault(require("fs"));
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 app.use((0, cors_1.default)());
-// zod schema
+// zod schema siginup
 const signupSchema = zod_1.z.object({
     username: zod_1.z
         .string()
-        .min(4, "Username must be at least 4 characters long"),
+        .min(4, "Username must be at least 4 characters long")
+        .max(10, "maximum 10 characters long"),
     password: zod_1.z
         .string()
-        .min(4, "Password must be at least 8 characters long")
+        .min(4, "Password must be at least 4 characters long")
         .max(20, "Password must not exceed 20 characters")
-        .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/, "Password must include uppercase, lowercase, number, and special character"),
+    // .regex(
+    //     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/,
+    //     "Password must include uppercase, lowercase, number, and special character"
+    // ),
+});
+// zod schema for signin
+const signinSchema = zod_1.z.object({
+    username: zod_1.z.string().min(4).max(10),
+    password: zod_1.z.string().min(4).max(20)
 });
 app.post("/api/v1/signup", async (req, res) => {
     try {
@@ -66,11 +75,6 @@ app.post("/api/v1/signup", async (req, res) => {
             message: "Internal Server Error"
         });
     }
-});
-// zod schema for signin
-const signinSchema = zod_1.z.object({
-    username: zod_1.z.string().min(3).max(10),
-    password: zod_1.z.string().min(8).max(20)
 });
 app.post("/api/v1/signin", async (req, res) => {
     try {

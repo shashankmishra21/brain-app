@@ -19,21 +19,30 @@ app.use(express.json());
 app.use(cors());
 
 
-// zod schema
+// zod schema siginup
 const signupSchema = z.object({
     username: z
         .string()
-        .min(4, "Username must be at least 4 characters long"),
+        .min(4, "Username must be at least 4 characters long")
+        .max(10, "maximum 10 characters long"),
 
     password: z
         .string()
-        .min(4, "Password must be at least 8 characters long")
+        .min(4, "Password must be at least 4 characters long")
         .max(20, "Password must not exceed 20 characters")
-        .regex(
-            /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/,
-            "Password must include uppercase, lowercase, number, and special character"
-        ),
+        // .regex(
+        //     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/,
+        //     "Password must include uppercase, lowercase, number, and special character"
+        // ),
 });
+
+
+// zod schema for signin
+const signinSchema = z.object({
+    username: z.string().min(4).max(10),
+    password: z.string().min(4).max(20)
+});
+
 
 app.post("/api/v1/signup", async (req, res) => {
 
@@ -78,13 +87,6 @@ app.post("/api/v1/signup", async (req, res) => {
         });
     }
 })
-
-
-// zod schema for signin
-const signinSchema = z.object({
-    username: z.string().min(3).max(10),
-    password: z.string().min(8).max(20)
-});
 
 
 app.post("/api/v1/signin", async (req, res) => {
