@@ -20,7 +20,6 @@ const signinSchema = z.object({
     password: z.string().min(4).max(20),
 });
 
-
 // POST /signup 
 router.post("/signup", async (req: Request, res: Response, next: NextFunction) => {
 
@@ -63,6 +62,5 @@ router.post("/signin", authRateLimit, async (req: Request, res: Response, next: 
         next(err);
     }
 });
-
 
 export default router;

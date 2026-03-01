@@ -9,9 +9,9 @@ import brainRoutes from "./features/brain/brain.routes";
 import { errorHandler, notFoundHandler } from "./middleware/error.middleware";
 import { apiRateLimit } from "./middleware/rate-limit.middleware";
 
-
 // Custom XSS middleware
 const xssMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+
     if (req.body) {
         const sanitize = (obj: any): any => {
             if (typeof obj === 'string') return filterXSS(obj);
@@ -31,8 +31,8 @@ const app = express();
 
 app.use(helmet());
 app.use(express.json());
-app.use(cors());
-app.use(mongoSanitize());
+app.use(cors())
+app.use(mongoSanitize())
 app.use(xssMiddleware);
 app.use('/uploads', express.static('uploads'));
 app.use(apiRateLimit);
@@ -40,7 +40,6 @@ app.use(apiRateLimit);
 app.use('/api/v1', authRoutes);             // /api/v1/signup, /api/v1/signin   
 app.use('/api/v1/content', contentRoutes);  // /api/v1/content ...
 app.use('/api/v1/brain', brainRoutes);      // /api/v1/brain/:shareLink, /api/v1/brain/share
-
 
 app.use(notFoundHandler);   // 404 for unknown routes
 app.use(errorHandler);      // catches all errors

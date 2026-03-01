@@ -1,4 +1,4 @@
-import { Response, NextFunction } from "express";  // ← add NextFunction
+import { Response, NextFunction } from "express"
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -15,7 +15,7 @@ const contentRouter = Router();
 const storage = multer.diskStorage({
     destination: 'uploads/documents/',
     filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname);
+        cb(null, Date.now() + '-' + file.originalname)
     }
 });
 
@@ -70,7 +70,7 @@ contentRouter.post("/", userMiddleware, upload.single('file'), async (req: AuthR
             contentData.fileSize = uploadedFile.size
         }
 
-        const content = await ContentModel.create(contentData);
+        const content = await ContentModel.create(contentData)
 
         await invalidateUserCache(req.userId as string);  // Invalidate cache after new content added
         return res.status(201).json({ success: true, message: "Content created successfully", data: content });
@@ -150,7 +150,6 @@ contentRouter.delete("/", userMiddleware, async (req: AuthRequest, res: Response
         next(error);
     }
 });
-
 
 // Search - GET /api/v1/content/search?q=youtube&type=twitter&page=1&limit=10
 contentRouter.get("/search", userMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
