@@ -151,6 +151,56 @@ contentRouter.delete("/", userMiddleware, async (req: AuthRequest, res: Response
     }
 });
 
+
+// Search - GET /api/v1/content/search?q=youtube&type=twitter&page=1&limit=10
+contentRouter.get("/search", userMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const { q, type, page = 1, limit = 10 } = req.query;
+        const userId = req.userId;
+        const skip = (Number(page) - 1) * Number(limit);
+
+        if (!q || (q as string).trim().length === 0) {
+            throw new AppError("Search query 'q' is required", 400);
+        }
+
+        // Build Filter
+        const filter: any = {
+            userId,
+            $text: { $search: q as string }  // uses text index on title+description
+        };
+
+        if (type) filter.type = type;
+
+        // Execute Search with Score 
+        const [results, total] = await Promise.all([
+            ContentModel.find(
+                filter,
+                { score: { $meta: "textScore" } }   // relevance score
+            )
+                .select('-filePath')
+                .sort({ score: { $meta: "textScore" } })  // best match first
+                .skip(skip)
+                .limit(Number(limit)),
+            ContentModel.countDocuments(filter)
+        ]);
+
+        return res.status(200).json({
+            success: true,
+            query: q,
+            results,
+            pagination: {
+                total,
+                page: Number(page),
+                limit: Number(limit),
+                pages: Math.ceil(total / Number(limit))
+            }
+        });
+
+    } catch (error) {
+        next(error);
+    }
+});
+
 // GET /:id/download 
 contentRouter.get("/:id/download", userMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
