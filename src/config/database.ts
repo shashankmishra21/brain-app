@@ -10,8 +10,8 @@ if (!dbUrl) {
 }
 
 mongoose.connect(dbUrl)
-  .then(() => console.log("Connected to MongoDB ✅"))
-  .catch((err) => console.error("DB connection error ❌", err));
+  .then(() => console.log("Connected to MongoDB"))
+  .catch((err) => console.error("DB connection error", err));
 
 // User Schema
 const UserSchema = new Schema({

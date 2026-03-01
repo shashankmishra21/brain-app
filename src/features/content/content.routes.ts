@@ -1,4 +1,4 @@
-import { Response } from "express";
+import { Response, NextFunction } from "express";  // ← add NextFunction
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -7,6 +7,7 @@ import { ContentModel } from "./content.model";
 import { userMiddleware } from "../../middleware/auth.middleware";
 import { AuthRequest } from "../../types";
 import { BACKEND_URL } from "../../config";
+import { AppError } from "../../middleware/error.middleware";
 
 const contentRouter = Router();
 
@@ -33,32 +34,24 @@ const upload = multer({
     }
 });
 
-// POST /api/v1/content
-contentRouter.post("/", userMiddleware, upload.single('file'), async (req: AuthRequest, res: Response) => {
+//  POST
+contentRouter.post("/", userMiddleware, upload.single('file'), async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const { title, link, type, description } = req.body;
         const uploadedFile = req.file;
 
-        if (!title || !type) {
-            return res.status(400).json({ success: false, message: "Title and type are required" });
-        }
 
-        const validTypes = ['linkedin', 'twitter', 'instagram', 'youtube', 'pinterest', 'documents', 'other'];
-        if (!validTypes.includes(type)) {
-            return res.status(400).json({ success: false, message: `Invalid type. Must be one of: ${validTypes.join(', ')}` });
-        }
+        if (!title || !type) throw new AppError("Title and type are required", 400);
 
-        if (type === 'documents' && !uploadedFile && !link) {
-            return res.status(400).json({ success: false, message: "Documents require a file or link" });
-        }
+        const validTypes = ['linkedin', 'twitter', 'instagram', 'youtube', 'pinterest', 'documents', 'other']
 
-        if (type === 'other' && !link && !description) {
-            return res.status(400).json({ success: false, message: "Other type requires link or description" });
-        }
+        if (!validTypes.includes(type)) throw new AppError(`Invalid type. Must be one of: ${validTypes.join(', ')}`, 400);
 
-        if (!['documents', 'other'].includes(type) && (!link || !description)) {
-            return res.status(400).json({ success: false, message: "Social media types require link and description" });
-        }
+        if (type === 'documents' && !uploadedFile && !link) throw new AppError("Documents require a file or link", 400);
+
+        if (type === 'other' && !link && !description) throw new AppError("Other type requires link or description", 400);
+
+        if (!['documents', 'other'].includes(type) && (!link || !description)) throw new AppError("Social media types require link and description", 400);
 
         const contentData: any = {
             title: title?.trim() || '',
@@ -71,34 +64,27 @@ contentRouter.post("/", userMiddleware, upload.single('file'), async (req: AuthR
         if (link?.trim()) contentData.link = link.trim();
 
         if (uploadedFile) {
-            contentData.fileName = uploadedFile.originalname;
-            contentData.filePath = uploadedFile.path;
-            contentData.fileSize = uploadedFile.size;
+            contentData.fileName = uploadedFile.originalname
+            contentData.filePath = uploadedFile.path
+            contentData.fileSize = uploadedFile.size
         }
 
         const content = await ContentModel.create(contentData);
-
         return res.status(201).json({ success: true, message: "Content created successfully", data: content });
 
-    } catch (error: any) {
-        if (error.name === 'ValidationError') {
-            return res.status(400).json({ success: false, message: error.message });
-        }
-        return res.status(500).json({ success: false, message: "Internal server error" });
+    } catch (error) {
+        next(error)
     }
 });
 
-// GET /api/v1/content
-// Supports: ?type=youtube  ?page=1  ?limit=20
-contentRouter.get("/", userMiddleware, async (req: AuthRequest, res: Response) => {
+// GET 
+contentRouter.get("/", userMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const userId = req.userId;
         const { type, page = 1, limit = 20 } = req.query;
         const skip = (Number(page) - 1) * Number(limit);
 
-        if (!userId) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
-        }
+        if (!userId) throw new AppError("Unauthorized", 401);
 
         const filter: any = { userId };
         if (type) filter.type = type;
@@ -133,42 +119,35 @@ contentRouter.get("/", userMiddleware, async (req: AuthRequest, res: Response) =
         });
 
     } catch (error) {
-        return res.status(500).json({ success: false, message: "Internal server error" });
+        next(error);
     }
 });
 
-// DELETE 
-// /POST/api/v1/content
-contentRouter.delete("/", userMiddleware, async (req: AuthRequest, res: Response) => {
+// DELETE
+contentRouter.delete("/", userMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const { contentId } = req.body;
         const userId = req.userId;
 
-        if (!contentId) {
-            return res.status(400).json({ success: false, message: "Content ID is required" });
-        }
+        if (!contentId) throw new AppError("Content ID is required", 400);
 
         const content = await ContentModel.findOne({ _id: contentId, userId });
-        if (!content) {
-            return res.status(404).json({ success: false, message: "Content not found or unauthorized" });
-        }
+        if (!content) throw new AppError("Content not found or unauthorized", 404);
 
-        // Delete physical file if exists
         if (content.filePath && fs.existsSync(content.filePath)) {
             fs.unlinkSync(content.filePath);
         }
 
         await ContentModel.deleteOne({ _id: contentId, userId });
-
         return res.json({ success: true, message: "Content deleted successfully" });
 
     } catch (error) {
-        return res.status(500).json({ success: false, message: "Internal Server Error" });
+        next(error);
     }
 });
 
-// GET /:id/download
-contentRouter.get("/:id/download", userMiddleware, async (req: AuthRequest, res: Response) => {
+// GET /:id/download 
+contentRouter.get("/:id/download", userMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const content = await ContentModel.findOne({
             _id: req.params.id,
@@ -176,16 +155,14 @@ contentRouter.get("/:id/download", userMiddleware, async (req: AuthRequest, res:
             type: 'documents'
         }).select('+filePath');
 
-        if (!content?.filePath) {
-            return res.status(404).json({ success: false, message: "Document not found" });
-        }
+        if (!content?.filePath) throw new AppError("Document not found", 404);
 
         res.setHeader('Content-Disposition', `attachment; filename="${content.fileName}"`);
         res.setHeader('Content-Type', 'application/octet-stream');
         res.sendFile(path.resolve(content.filePath));
 
     } catch (error) {
-        return res.status(500).json({ success: false, message: "Download failed" });
+        next(error);
     }
 });
 

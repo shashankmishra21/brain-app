@@ -1,4 +1,4 @@
-import { Router, Response } from "express";
+import { Router, Response, NextFunction } from "express";
 import { LinkModel, UserModel } from "../../config/database";
 import { ContentModel } from "../content/content.model";
 import { userMiddleware } from "../../middleware/auth.middleware";
@@ -9,7 +9,8 @@ import { BACKEND_URL } from "../../config";
 const router = Router();
 
 // POST /api/v1/brain/share
-router.post("/share", userMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/share", userMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
+
     try {
         const { share } = req.body;
         if (share) {
@@ -31,7 +32,7 @@ router.post("/share", userMiddleware, async (req: AuthRequest, res: Response) =>
             return res.json({ message: "Share link removed" });
         }
     } catch (error) {
-        res.status(500).json({ message: "Error updating share link" });
+        next(error);
     }
 });
 
