@@ -6,6 +6,7 @@ import bcrypt from "bcrypt";
 import { UserModel } from "../../config/database";
 import { JWT_SECRET } from "../../config";
 import { AppError } from "../../middleware/error.middleware";
+import { authRateLimit } from "../../middleware/rate-limit.middleware";
 
 const router = Router();
 
@@ -40,7 +41,7 @@ router.post("/signup", async (req: Request, res: Response, next: NextFunction) =
 });
 
 // POST /signin
-router.post("/signin", async (req: Request, res: Response, next: NextFunction) => {
+router.post("/signin", authRateLimit, async (req: Request, res: Response, next: NextFunction) => {
 
     try {
         const { username, password } = signinSchema.parse(req.body);
