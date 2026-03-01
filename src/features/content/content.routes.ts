@@ -8,6 +8,7 @@ import { userMiddleware } from "../../middleware/auth.middleware";
 import { AuthRequest } from "../../types";
 import { BACKEND_URL } from "../../config";
 import { AppError } from "../../middleware/error.middleware";
+import { invalidateUserCache, CACHE_TTL, cacheMiddleware } from "../../middleware/cache.middleware";
 
 const contentRouter = Router();
 
@@ -70,6 +71,8 @@ contentRouter.post("/", userMiddleware, upload.single('file'), async (req: AuthR
         }
 
         const content = await ContentModel.create(contentData);
+
+        await invalidateUserCache(req.userId as string);  // Invalidate cache after new content added
         return res.status(201).json({ success: true, message: "Content created successfully", data: content });
 
     } catch (error) {
@@ -78,7 +81,7 @@ contentRouter.post("/", userMiddleware, upload.single('file'), async (req: AuthR
 });
 
 // GET 
-contentRouter.get("/", userMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
+contentRouter.get("/", userMiddleware, cacheMiddleware(CACHE_TTL.CONTENT_LIST), async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const userId = req.userId;
         const { type, page = 1, limit = 20 } = req.query;
@@ -139,6 +142,8 @@ contentRouter.delete("/", userMiddleware, async (req: AuthRequest, res: Response
         }
 
         await ContentModel.deleteOne({ _id: contentId, userId });
+
+        await invalidateUserCache(req.userId as string);  // invalidae cache after delete
         return res.json({ success: true, message: "Content deleted successfully" });
 
     } catch (error) {
