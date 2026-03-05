@@ -48,6 +48,19 @@ const ContentSchema = new Schema({
         ref: "User",
         required: true
     },
+
+    aiSummary: {
+        type: String,
+        default: ''
+    },
+    aiTags: [{
+        type: String
+    }],
+    processedAt: {
+        type: Date,
+        default: null
+    },
+
 }, {
     timestamps: true
 });

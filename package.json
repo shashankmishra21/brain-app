@@ -13,7 +13,11 @@
   "description": "",
   "dependencies": {
     "@fontsource/roboto": "^5.2.8",
+    "@google/generative-ai": "^0.24.1",
+    "@pinecone-database/pinecone": "^7.1.0",
+    "axios": "^1.13.6",
     "bcrypt": "^6.0.0",
+    "bullmq": "^5.70.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",

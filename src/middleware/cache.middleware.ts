@@ -48,13 +48,12 @@ export const cacheMiddleware = (ttl: number) => {
 // invalidtion - Call this after POST / DELETE to clear stale cache
 export const invalidateUserCache = async (userId: string) => {
     try {
-        // Find all keys for this user
+        if (redis.status !== 'ready') return;
         const keys = await redis.keys(`cache:${userId}:*`);
         if (keys.length > 0) {
             await redis.del(...keys);
-            console.log(`Cache cleared for user: ${userId} (${keys.length} keys)`);
         }
     } catch (err) {
-        console.error("Cache invalidation error:", err);
+        console.log('Cache invalidation skipped:', err);
     }
 };

@@ -9,6 +9,7 @@ import { AuthRequest } from "../../types";
 import { BACKEND_URL } from "../../config";
 import { AppError } from "../../middleware/error.middleware";
 import { invalidateUserCache, CACHE_TTL, cacheMiddleware } from "../../middleware/cache.middleware";
+import { aiQueue } from "../../queues/ai.queue";
 
 const contentRouter = Router();
 
@@ -71,6 +72,13 @@ contentRouter.post("/", userMiddleware, upload.single('file'), async (req: AuthR
         }
 
         const content = await ContentModel.create(contentData)
+
+        await aiQueue.add("process-content", {
+            contentId: content._id.toString(),
+            userId: req.userId
+        });
+
+        console.log(`AI job queued for: ${content.title}`);
 
         await invalidateUserCache(req.userId as string);  // Invalidate cache after new content added
         return res.status(201).json({ success: true, message: "Content created successfully", data: content });
