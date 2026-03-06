@@ -5,11 +5,13 @@ import fs from "fs";
 import { Router } from "express";
 import { ContentModel } from "./content.model";
 import { userMiddleware } from "../../middleware/auth.middleware";
-import { AuthRequest } from "../../types";
+import { AuthRequest } from "../../types"
 import { BACKEND_URL } from "../../config";
-import { AppError } from "../../middleware/error.middleware";
+import { AppError } from "../../middleware/error.middleware"
 import { invalidateUserCache, CACHE_TTL, cacheMiddleware } from "../../middleware/cache.middleware";
 import { aiQueue } from "../../queues/ai.queue";
+import { deleteVector } from "../../services/ai.service";
+import { semanticSearch } from "../../services/ai.service";
 
 const contentRouter = Router();
 
@@ -81,8 +83,23 @@ contentRouter.post("/", userMiddleware, upload.single('file'), async (req: AuthR
         console.log(`AI job queued for: ${content.title}`);
 
         await invalidateUserCache(req.userId as string);  // Invalidate cache after new content added
-        return res.status(201).json({ success: true, message: "Content created successfully", data: content });
 
+        return res.status(201).json({
+            success: true,
+            message: "Content created successfully",
+            data: {
+                _id: content._id,
+                title: content.title,
+                description: content.description,
+                type: content.type,
+                tags: content.tags,
+                link: content.link || null,
+                fileName: content.fileName || null,
+                fileSize: content.fileSize || null,
+                userId: content.userId,
+                createdAt: content.createdAt,
+            }
+        });
     } catch (error) {
         next(error)
     }
@@ -102,7 +119,7 @@ contentRouter.get("/", userMiddleware, cacheMiddleware(CACHE_TTL.CONTENT_LIST), 
 
         const [contents, total] = await Promise.all([
             ContentModel.find(filter)
-                .select('-filePath')
+                .select('-filePath -aiSummary')
                 .populate("userId", "username")
                 .sort({ createdAt: -1 })
                 .skip(skip)
@@ -134,31 +151,6 @@ contentRouter.get("/", userMiddleware, cacheMiddleware(CACHE_TTL.CONTENT_LIST), 
     }
 });
 
-// DELETE
-contentRouter.delete("/", userMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
-    try {
-        const { contentId } = req.body;
-        const userId = req.userId;
-
-        if (!contentId) throw new AppError("Content ID is required", 400);
-
-        const content = await ContentModel.findOne({ _id: contentId, userId });
-        if (!content) throw new AppError("Content not found or unauthorized", 404);
-
-        if (content.filePath && fs.existsSync(content.filePath)) {
-            fs.unlinkSync(content.filePath);
-        }
-
-        await ContentModel.deleteOne({ _id: contentId, userId });
-
-        await invalidateUserCache(req.userId as string);  // invalidae cache after delete
-        return res.json({ success: true, message: "Content deleted successfully" });
-
-    } catch (error) {
-        next(error);
-    }
-});
-
 // Search - GET /api/v1/content/search?q=youtube&type=twitter&page=1&limit=10
 contentRouter.get("/search", userMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
@@ -170,36 +162,70 @@ contentRouter.get("/search", userMiddleware, async (req: AuthRequest, res: Respo
             throw new AppError("Search query 'q' is required", 400);
         }
 
-        // Build Filter
         const filter: any = {
             userId,
-            $text: { $search: q as string }  // uses text index on title+description
+            $text: { $search: q as string }
         };
-
         if (type) filter.type = type;
 
-        // Execute Search with Score 
-        const [results, total] = await Promise.all([
-            ContentModel.find(
-                filter,
-                { score: { $meta: "textScore" } }   // relevance score
-            )
+        // Ek baar mein sab fetch karo — keyword + semantic + count
+        const [keywordResults, semanticIds, total] = await Promise.all([
+            ContentModel.find(filter, { score: { $meta: "textScore" } })
                 .select('-filePath')
-                .sort({ score: { $meta: "textScore" } })  // best match first
+                .sort({ score: { $meta: "textScore" } })
                 .skip(skip)
                 .limit(Number(limit)),
+            semanticSearch(q as string, userId as string),
             ContentModel.countDocuments(filter)
         ]);
+
+        // Semantic results fetch
+        const semanticResults = await ContentModel.find({
+            _id: { $in: semanticIds },
+            userId
+        }).select('-filePath');
+
+        // merge both and remove duplicates
+        const keywordIds = new Set(keywordResults.map(r => r._id.toString()));
+        const uniqueSemanticResults = semanticResults.filter(
+            r => !keywordIds.has(r._id.toString())
+        );
 
         return res.status(200).json({
             success: true,
             query: q,
-            results,
+            results: [...keywordResults, ...uniqueSemanticResults],
             pagination: {
                 total,
                 page: Number(page),
                 limit: Number(limit),
                 pages: Math.ceil(total / Number(limit))
+            }
+        });
+
+    } catch (error) {
+        next(error);
+    }
+});
+
+// GET /:id — Full detail with aiSummary
+contentRouter.get("/:id", userMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const content = await ContentModel.findOne({
+            _id: req.params.id,
+            userId: req.userId
+        }).select('-filePath');
+
+        if (!content) throw new AppError("Content not found", 404);
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                ...content.toObject(),
+                hasFile: !!content.fileName,
+                downloadUrl: content.fileName
+                    ? `${BACKEND_URL}/api/v1/content/${content._id}/download`
+                    : null
             }
         });
 
@@ -227,5 +253,32 @@ contentRouter.get("/:id/download", userMiddleware, async (req: AuthRequest, res:
         next(error);
     }
 });
+
+// DELETE
+contentRouter.delete("/", userMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const { contentId } = req.body;
+        const userId = req.userId;
+
+        if (!contentId) throw new AppError("Content ID is required", 400);
+
+        const content = await ContentModel.findOne({ _id: contentId, userId });
+        if (!content) throw new AppError("Content not found or unauthorized", 404);
+
+        if (content.filePath && fs.existsSync(content.filePath)) {
+            fs.unlinkSync(content.filePath);
+        }
+
+        await ContentModel.deleteOne({ _id: contentId, userId });  // delete from mongo 
+        await deleteVector(contentId); // delete vectors too
+
+        await invalidateUserCache(req.userId as string);  // invalidae cache after delete
+        return res.json({ success: true, message: "Content deleted successfully" });
+
+    } catch (error) {
+        next(error);
+    }
+});
+
 
 export default contentRouter;

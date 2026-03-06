@@ -1,10 +1,10 @@
 import axios from "axios";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 import { pineconeIndex } from "../config/pinecone";
 
-const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// Generate Embedding (HuggingFace)
+//  Generate Embedding (HuggingFace)
 export const generateEmbedding = async (text: string): Promise<number[]> => {
     const response = await axios.post(
         "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2/pipeline/feature-extraction",
@@ -16,47 +16,56 @@ export const generateEmbedding = async (text: string): Promise<number[]> => {
             },
         }
     );
-
     const data = response.data;
     return Array.isArray(data[0]) ? data[0] : data;
 };
 
-// Summarize Content (Gemini)
+// Summarize Content
 export const summarizeContent = async (text: string): Promise<string> => {
     try {
-        const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash-002" });
-        const result = await model.generateContent(`Summarize: ${text.slice(0, 1000)}`);
-        return result.response.text();
+        const response = await groq.chat.completions.create({
+            model: "llama-3.1-8b-instant",
+            messages: [{
+                role: "user",
+                content: `Summarize this in 1-2 sentences, keep it concise: ${text.slice(0, 1000)}`
+            }],
+            max_tokens: 150,
+        });
+        return response.choices[0].message.content || "";
     } catch (err: any) {
-        console.log("Gemini error:", err.message);
+        console.log("⚠️ Groq summarize error:", err.message);
         return "";
     }
 };
 
-
-// Extract Tags (Gemini)
+//Extract Tags 
 export const extractTags = async (text: string, type: string): Promise<string[]> => {
     try {
-        const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash-002" });
-        const result = await model.generateContent(
-            `Extract 3-5 relevant tags from this ${type} content. 
-             Return ONLY comma-separated tags, no explanation.
-             Content: ${text.slice(0, 500)}`
-        );
-        return result.response.text()
-            .split(",")
+        const response = await groq.chat.completions.create({
+            model: "llama-3.1-8b-instant",
+            messages: [{
+                role: "user",
+                content: `Extract 3-5 relevant tags from this ${type} content.
+                Return ONLY comma-separated tags, no explanation, no numbering.
+                Content: ${text.slice(0, 500)}`
+            }],
+            max_tokens: 50,
+        });
+        return response.choices[0].message.content
+            ?.split(",")
             .map(t => t.trim().toLowerCase())
-            .filter(t => t.length > 0);
-    } catch {
+            .filter(t => t.length > 0) || [];
+    } catch (err: any) {
+        console.log("⚠️ Groq tags error:", err.message);
         return [];
     }
 };
 
-// Store Vector in Pinecone
+// Store Vector in Pinecone 
 export const storeVector = async (
     contentId: string,
     text: string,
-    metadata: Record<string, string>  // change from 'object' to this
+    metadata: Record<string, string>
 ): Promise<void> => {
     const embedding = await generateEmbedding(text);
     await pineconeIndex.upsert({
@@ -68,7 +77,7 @@ export const storeVector = async (
     });
 };
 
-//Semantic Search
+// Semantic Search
 export const semanticSearch = async (
     query: string,
     userId: string,
