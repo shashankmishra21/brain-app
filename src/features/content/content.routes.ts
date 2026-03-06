@@ -12,6 +12,7 @@ import { invalidateUserCache, CACHE_TTL, cacheMiddleware } from "../../middlewar
 import { aiQueue } from "../../queues/ai.queue";
 import { deleteVector } from "../../services/ai.service";
 import { semanticSearch } from "../../services/ai.service";
+import Groq from "groq-sdk";
 
 const contentRouter = Router();
 
@@ -119,7 +120,7 @@ contentRouter.get("/", userMiddleware, cacheMiddleware(CACHE_TTL.CONTENT_LIST), 
 
         const [contents, total] = await Promise.all([
             ContentModel.find(filter)
-                .select('-filePath -aiSummary')
+                .select('-filePath')
                 .populate("userId", "username")
                 .sort({ createdAt: -1 })
                 .skip(skip)
@@ -151,6 +152,8 @@ contentRouter.get("/", userMiddleware, cacheMiddleware(CACHE_TTL.CONTENT_LIST), 
     }
 });
 
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
 // Search - GET /api/v1/content/search?q=youtube&type=twitter&page=1&limit=10
 contentRouter.get("/search", userMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
@@ -168,7 +171,6 @@ contentRouter.get("/search", userMiddleware, async (req: AuthRequest, res: Respo
         };
         if (type) filter.type = type;
 
-        // Ek baar mein sab fetch karo — keyword + semantic + count
         const [keywordResults, semanticIds, total] = await Promise.all([
             ContentModel.find(filter, { score: { $meta: "textScore" } })
                 .select('-filePath')
@@ -179,22 +181,54 @@ contentRouter.get("/search", userMiddleware, async (req: AuthRequest, res: Respo
             ContentModel.countDocuments(filter)
         ]);
 
-        // Semantic results fetch
         const semanticResults = await ContentModel.find({
             _id: { $in: semanticIds },
             userId
         }).select('-filePath');
 
-        // merge both and remove duplicates
         const keywordIds = new Set(keywordResults.map(r => r._id.toString()));
         const uniqueSemanticResults = semanticResults.filter(
             r => !keywordIds.has(r._id.toString())
         );
 
+        const allResults = [...keywordResults, ...uniqueSemanticResults];
+
+
+        // AI Answer generate
+        let aiAnswer = null;
+        if (allResults.length > 0) {
+            const context = allResults.slice(0, 3).map((c: any) =>
+                `Title: ${c.title}\nDescription: ${c.description || ""}\nSummary: ${c.aiSummary || ""}`
+            ).join('\n\n---\n\n');
+
+            try {
+                const completion = await groq.chat.completions.create({
+                    model: "llama-3.1-8b-instant",
+                    messages: [
+                        {
+                            role: "system",
+                            content: `You are BrainCache AI — a personal knowledge assistant. Answer the user's query using ONLY the notes provided below. Be concise (2-3 sentences max). If answer not found in notes, say "I couldn't find this in your saved notes."`
+                        },
+                        {
+                            role: "user",
+                            content: `Query: "${q}"\n\nMy Notes:\n${context}`
+                        }
+                    ],
+                    max_tokens: 150,
+                    temperature: 0.5
+                });
+                aiAnswer = completion.choices[0].message.content;
+            } catch (aiError) {
+                console.error("AI answer generation failed:", aiError);
+
+            }
+        }
+
         return res.status(200).json({
             success: true,
             query: q,
-            results: [...keywordResults, ...uniqueSemanticResults],
+            aiAnswer,
+            results: allResults,
             pagination: {
                 total,
                 page: Number(page),
