@@ -254,6 +254,54 @@ contentRouter.get("/:id/download", userMiddleware, async (req: AuthRequest, res:
     }
 });
 
+contentRouter.put("/:id", userMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const { title, description, tags } = req.body;
+        const userId = req.userId;
+
+        if (!title && !description && !tags) {
+            throw new AppError("At least one field required to update", 400);
+        }
+
+        const updateData: any = {};
+        if (title) updateData.title = title.trim();
+        if (description) updateData.description = description.trim();
+        if (tags) updateData.tags = tags;
+
+        const content = await ContentModel.findOneAndUpdate(
+            { _id: req.params.id, userId },
+            updateData,
+            { new: true }
+        );
+
+        if (!content) throw new AppError("Content not found or unauthorized", 404);
+
+        // Re-queue AI job for updated content
+        await aiQueue.add("process-content", {
+            contentId: content._id.toString(),
+            userId: userId as string
+        });
+
+        await invalidateUserCache(userId as string);
+
+        return res.status(200).json({
+            success: true,
+            message: "Content updated successfully",
+            data: {
+                _id: content._id,
+                title: content.title,
+                description: content.description,
+                type: content.type,
+                tags: content.tags,
+                updatedAt: content.updatedAt,
+            }
+        });
+
+    } catch (error) {
+        next(error);
+    }
+});
+
 // DELETE
 contentRouter.delete("/", userMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
