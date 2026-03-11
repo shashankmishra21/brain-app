@@ -1,4 +1,5 @@
 import Redis from "ioredis";
+import logger from "./logger"
 
 const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
 
@@ -13,9 +14,9 @@ const redis = new Redis(redisUrl, {
     },
 });
 
-redis.on("connect", () => console.log("Redis connected"));
+redis.on("connect", () => logger.warn("Redis connected"));
 redis.on("error", (err) => {
-    console.log("Redis unavailable:", err.message);
+    logger.error({ err }, "Redis unavailable");
 });
 
 export default redis;
