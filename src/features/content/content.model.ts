@@ -84,4 +84,7 @@ ContentSchema.pre('save', function (next) {
     next();
 });
 
+ContentSchema.index({ userId: 1, createdAt: -1 }); // dashboard pagination
+ContentSchema.index({ userId: 1, type: 1 });       // type filtering
+ContentSchema.index({ userId: 1, "$**": "text" }); // text search
 export const ContentModel = model("Content", ContentSchema);
