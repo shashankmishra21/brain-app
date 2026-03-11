@@ -43,6 +43,14 @@ app.use(xssMiddleware);
 
 app.use(apiRateLimit);
 
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 app.use('/api/v1', authRoutes);
 app.use('/api/v1/content', contentRoutes);
 app.use('/api/v1/brain', brainRoutes);
