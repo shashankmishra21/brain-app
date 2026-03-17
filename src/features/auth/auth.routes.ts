@@ -56,7 +56,7 @@ router.post("/signin", authRateLimit, async (req: Request, res: Response, next: 
             JWT_SECRET
         );
 
-        return res.status(200).json({ success: true, message: "Sign in successful", token });
+        return res.status(200).json({ success: true, message: "Sign in successful", token, user: { name: user.username } });
 
     } catch (err) {
         next(err);
