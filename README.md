@@ -1,6 +1,7 @@
-# BrainCache — Knowledge Management Platform
+# 🧠 BrainCache - AI Knowledge Engine
 
-> A production-grade backend for capturing, organizing, and retrieving your second brain.
+> Scalable backend powering an AI-driven personal knowledge engine with hybrid search and contextual AI answers.
+> This repository contains the backend services powering BrainCache.
 
 ![Node.js](https://img.shields.io/badge/Node.js-20+-green)
 ![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue)
@@ -10,161 +11,219 @@
 
 ---
 
-## Features
+## 🚀 Overview
 
-- **JWT Authentication** — Secure signup/signin with bcrypt password hashing
-- **Content Management** — Save links, documents, and notes across 7 content types
-- **Full-text Search** — MongoDB text indexes with relevance scoring
-- **Redis Caching** — 8x faster repeated queries (40ms → 5ms)
-- **File Uploads** — PDF, DOC, DOCX, PPT via Multer (10MB limit)
-- **Brain Share** — Public shareable link for your knowledge base
-- **Security** — Helmet, rate limiting, XSS + NoSQL injection protection
-- **Pagination** — Efficient retrieval with compound indexes
-- **Centralized Error Handling** — AppError class, Zod, JWT, Mongoose errors
+BrainCache Backend is a **production-grade AI-powered knowledge engine** designed to capture, process, and retrieve user data intelligently.
+
+It implements a **Retrieval-Augmented Generation (RAG)-style pipeline**, combining:
+- Keyword search (MongoDB)
+- Semantic search (vector embeddings)
+- LLM-based answer generation
 
 ---
 
-## Tech Stack
+## ✨ Core Capabilities
+
+### 🧠 Intelligent Knowledge Retrieval
+- Natural language querying over user data
+- AI-generated contextual answers
+- Personalized responses using stored knowledge
+
+### 📥 Universal Content Ingestion
+- Supports:
+  - Notes
+  - Links
+  - Documents
+  - Social content
+- File uploads with validation (PDF, DOC, PPT, etc)
+
+### 🔎 Hybrid Search Engine
+- MongoDB full-text search (text index)
+- Semantic search via embeddings
+- Merged ranking for better relevance
+
+### 🤖 AI Answer Generation
+- Uses Groq (LLaMA 3.1)
+- Context built from top retrieved results
+- Returns concise answers (2–3 lines)
+
+### ⚡ High Performance
+- Redis caching for content APIs
+- Pagination + indexing
+- Optimized queries
+
+### 🔄 Async AI Processing
+- BullMQ queue for:
+  - Embedding generation
+  - Summarization
+  - Auto-tagging
+
+---
+
+## 🖥️ Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Runtime | Node.js 20+ |
-| Framework | Express.js + TypeScript |
-| Database | MongoDB + Mongoose |
-| Cache | Redis (ioredis) |
+|------|-----------|
+| Runtime | Node.js |
+| Language | TypeScript |
+| Framework | Express.js |
+| Database | MongoDB |
+| Cache | Redis |
+| Queue | BullMQ |
+| Vector DB | Pinecone |
+| LLM | Groq (LLaMA 3.1) |
+| Embeddings | HuggingFace |
 | Auth | JWT + bcrypt |
 | Validation | Zod |
 | File Upload | Multer |
-| Security | Helmet, rate-limiter-flexible, xss, express-mongo-sanitize |
-| Queue (upcoming) | BullMQ + Redis |
-| AI (upcoming) | OpenAI + Pinecone |
+| Security | Helmet, rate limiting, XSS, NoSQL sanitization |
 
 ---
 
-## Project Structure
+## 📂 Project Structure
 
-```
 src/
-├── app.ts                        # Express setup + middleware
-├── server.ts                     # Entry point
 ├── config/
-│   ├── database.ts               # MongoDB connection
-│   └── redis.ts                  # Redis connection
 ├── features/
 │   ├── auth/
-│   │   └── auth.routes.ts        # signup, signin
-│   ├── content/
-│   │   ├── content.model.ts      # Schema + indexes
-│   │   └── content.routes.ts     # CRUD + search + download
-│   └── brain/
-│       └── brain.routes.ts       # Share link
+│   ├── brain/
+│   └── content/
 ├── middleware/
-│   ├── auth.middleware.ts        # JWT verification
-│   ├── cache.middleware.ts       # Redis cache + invalidation
-│   ├── error.middleware.ts       # Centralized error handler
-│   └── rate-limit.middleware.ts  # API + auth rate limiting
-└── types/
-    └── index.ts                  # Shared TS interfaces
-```
+├── queues/
+│   └── ai.queue.ts
+├── services/
+│   └── ai.service.ts
+├── types/
+├── app.ts
+├── server.ts
 
 ---
 
-## API Endpoints
+## 📡 API Endpoints
 
 ### Auth
-```
-POST   /api/v1/signup              Register new user
-POST   /api/v1/signin              Login, returns JWT
-```
+POST   /api/v1/signup  
+POST   /api/v1/signin  
+
+---
 
 ### Content
-```
-POST   /api/v1/content               Create content (with file upload)
-GET    /api/v1/content               Get all content (paginated)
-GET    /api/v1/content/search        Full-text search with relevance
-DELETE /api/v1/content               Delete content + file cleanup
-GET    /api/v1/content/:id/download  Download document
-```
+
+POST   /api/v1/content  
+→ Create content (supports file upload)
+
+GET    /api/v1/content  
+→ Get all content (pagination + filtering + caching)
+
+GET    /api/v1/content/search?q=query&type=&page=&limit=  
+→ Hybrid search (keyword + semantic)  
+→ Returns AI-generated answer + results
+
+GET    /api/v1/content/:id  
+→ Get single content with metadata
+
+GET    /api/v1/content/:id/download  
+→ Download document file
+
+PUT    /api/v1/content/:id  
+→ Update content (re-triggers AI processing)
+
+DELETE /api/v1/content  
+→ Delete content + file + vector embeddings
+
+---
 
 ### Brain Share
-```
-POST   /api/v1/brain/share         Enable/disable public share link
-GET    /api/v1/brain/:hash         View shared brain (public)
-```
+
+POST   /api/v1/brain/share  
+GET    /api/v1/brain/:hash  
 
 ---
 
-## Setup & Installation
+## 🤖 AI Flow (Important)
 
-### Prerequisites
-- Node.js 20+
-- MongoDB
-- Redis (`docker run -d -p 6379:6379 redis`)
+1. User creates content  
+2. Content stored in MongoDB  
+3. Job added to BullMQ queue  
+4. AI service:
+   - Generates embeddings  
+   - Creates summary + tags  
+   - Stores vector in Pinecone  
 
-### Steps
-
-```bash
-# 1. Clone repo
-git clone https://github.com/yourusername/braincache-backend
-cd braincache-backend
-
-# 2. Install dependencies
-npm install
-
-# 3. Setup environment
-cp .env.example .env
-DATABASE_URL=database-url
-PORT=3000
-REDIS_URL="redis_url"
-
-# 4. Run dev server
-npm run dev
-```
+5. On search:
+   - MongoDB text search → keyword results  
+   - Pinecone → semantic matches  
+   - Merge both results  
+   - Top results → sent to LLM  
+   - LLM generates final answer  
 
 ---
 
-## Environment Variables
+## ⚙️ Setup & Installation
 
-```env
-PORT=3000
-DATABASE_URL=mongodb://localhost:27017/braincache
-JWT_SECRET=your-super-secret-key
-BACKEND_URL=http://localhost:3000
-REDIS_HOST=localhost
-REDIS_PORT=6379
-```
+1. Clone the repository  
+git clone https://github.com/shashankmishra21/braincache-backend  
+cd braincache-backend  
 
----
+2. Install dependencies  
+npm install  
 
-## Performance
+3. Create `.env` file  
 
-| Metric | Value |
-|--------|-------|
-| Cache HIT response | ~5ms |
-| Cache MISS response | ~40ms |
-| Cache improvement | 8x faster |
-| Rate limit (API) | 100 req/min |
-| Rate limit (Auth) | 5 attempts/15min |
-| Max file size | 10MB |
-| Pagination default | 20 items/page |
+PORT=3000  
+DATABASE_URL=your_mongodb_url  
+REDIS_URL=your_redis_url  
 
----
+PINECONE_API_KEY=your_key  
+PINECONE_INDEX=your_index  
 
-## Security Features
+GROQ_API_KEY=your_key  
+HUGGINGFACE_TOKEN=your_token  
 
-- JWT authentication on all protected routes
-- bcrypt password hashing (salt rounds: 10)
-- Helmet.js — OWASP security headers
-- Rate limiting — brute force protection
-- express-mongo-sanitize — NoSQL injection prevention
-- xss — XSS attack sanitization
-- File type validation (PDF, DOC, DOCX, PPT only)
-- Projection — sensitive fields excluded from responses
+4. Run server  
+npm run dev  
 
 ---
 
-## Author
+## 📊 Performance
 
-**Shashank Mishra**  
-Full Stack Developer | Backend Specialist  
-[GitHub](https://github.com/shashankmishra21) • [LinkedIn](https://www.linkedin.com/in/mishrashashank2106)
+- Redis caching → faster repeated queries  
+- Hybrid search → better accuracy  
+- Async jobs → non-blocking API  
+- Indexed queries → scalable performance  
+
+---
+
+## 🔐 Security Features
+
+- JWT authentication  
+- bcrypt password hashing  
+- Rate limiting  
+- Helmet security headers  
+- XSS protection  
+- NoSQL injection protection  
+- File validation + size limits  
+
+---
+
+## 🎯 Design Principles
+
+- Modular architecture  
+- Separation of concerns  
+- AI-first backend design  
+- Scalable and production-ready system  
+
+---
+
+## 👨‍💻 Author
+
+Shashank Mishra  
+Portfolio: http://shashankmishra.tech
+GitHub: https://github.com/shashankmishra21  
+LinkedIn: https://www.linkedin.com/in/mishrashashank2106  
+
+---
+
+## ⭐ Support
+
+If you like this project, give it a star on GitHub.
