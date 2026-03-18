@@ -1,6 +1,6 @@
 # 🧠 BrainCache - AI Knowledge Engine
 
-> Scalable backend powering an AI-driven personal knowledge engine with hybrid search and contextual AI answers.
+> Scalable backend powering an AI-driven personal knowledge engine with hybrid search and contextual AI answers.  
 > This repository contains the backend services powering BrainCache.
 
 ![Node.js](https://img.shields.io/badge/Node.js-20+-green)
@@ -82,20 +82,44 @@ It implements a **Retrieval-Augmented Generation (RAG)-style pipeline**, combini
 
 ## 📂 Project Structure
 
+```
 src/
 ├── config/
+│   ├── database.ts
+│   ├── logger.ts
+│   ├── pinecone.ts
+│   └── redis.ts
+│
 ├── features/
 │   ├── auth/
+│   │   └── auth.routes.ts
 │   ├── brain/
+│   │   └── brain.routes.ts
 │   └── content/
+│       ├── content.model.ts
+│       └── content.routes.ts
+│
 ├── middleware/
+│   ├── auth.middleware.ts
+│   ├── cache.middleware.ts
+│   ├── error.middleware.ts
+│   └── rate-limit.middleware.ts
+│
 ├── queues/
 │   └── ai.queue.ts
+│
 ├── services/
 │   └── ai.service.ts
+│
 ├── types/
+│   └── index.ts
+│
 ├── app.ts
+├── config.ts
+├── middleware.ts
 ├── server.ts
+└── utils.ts
+```
 
 ---
 
@@ -218,7 +242,7 @@ npm run dev
 ## 👨‍💻 Author
 
 Shashank Mishra  
-Portfolio: http://shashankmishra.tech
+Portfolio: http://shashankmishra.tech  
 GitHub: https://github.com/shashankmishra21  
 LinkedIn: https://www.linkedin.com/in/mishrashashank2106  
 
